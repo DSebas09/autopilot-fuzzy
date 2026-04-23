@@ -53,11 +53,22 @@ class FuzzyAutopilot:
     def _compute(self, system: ctrl.ControlSystem, error_val: float) -> float:
         error_clipped = float(np.clip(error_val, ERROR_MIN, ERROR_MAX))
 
-        sim = ctrl.ControlSystemSimulation(system)
-        sim.input['error'] = error_clipped
-        sim.compute()
+        try:
+            sim = ctrl.ControlSystemSimulation(system)
+            sim.input['error'] = error_clipped
+            sim.compute()
+            result = float(sim.output['correction'])
 
-        return float(sim.output['correction'])
+            if not np.isfinite(result):
+                raise ValueError(f"Defuzzification produced a non-finite value: {result}")
+
+            return result
+
+        except Exception as e:  # noqa: BLE001
+            # Safe fallback: no active correction.
+            # The simulator is still alive; the next tick will try again.
+            print("FuzzyAutopilot: inference failure (error=%.3f) → fallback 0.0 | %s: %s", e)
+            return 0.0
 
     def compute_x(self, error_x: float) -> float:
         """Calculate the correction for the X-axis (roll)."""
