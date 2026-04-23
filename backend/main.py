@@ -13,6 +13,8 @@ _log = logging.getLogger(__name__)
 TICK_INTERVAL: float = DT          # Keeps main.py in sync with simulation.py
 COMMAND_QUEUE_SIZE: int = 32       # Max buffered commands before dropping oldest
 
+VALID_INTENSITIES: frozenset[str] = frozenset({"low", "medium", "high"})
+
 ALLOWED_ORIGINS: list[str] = [
     "http://localhost:5173",       # Vite dev server
 ]
@@ -119,7 +121,9 @@ def _handle_command(sim: AircraftSimulation, raw: str) -> None:
             sim.reset()
         case "turbulence_pulse":
             intensity = msg.get("intensity", "medium")
-            if intensity in ("low", "medium", "high"):
+            if intensity in VALID_INTENSITIES:
                 sim.trigger_pulse(intensity)
         case "pause":
             sim.set_paused(bool(msg.get("value", False)))
+        case _:
+            pass  # Unknown command type. Ignore silently
