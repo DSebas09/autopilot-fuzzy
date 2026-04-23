@@ -1,3 +1,24 @@
+"""
+main.py
+-------
+FastAPI server exposing a WebSocket endpoint for the fuzzy autopilot simulator.
+
+WebSocket endpoint: ws://localhost:8000/ws/sim
+
+Message protocol
+----------------
+Server → Client  (~every TICK_INTERVAL seconds):
+    { "type": "state", "time": ..., "position": {...}, ... }
+
+Client → Server  (commands):
+    { "type": "reset" }
+    { "type": "turbulence_pulse", "intensity": "low" | "medium" | "high" }
+    { "type": "pause", "value": true | false }
+
+Run with:
+    uvicorn main:app --reload
+"""
+
 import asyncio
 import json
 import logging
@@ -61,11 +82,22 @@ app.add_middleware(
 
 @app.get("/")
 async def health_check() -> dict[str, str]:
-    return {"status": "ok", "message": "Fuzzy autopilot online ✈"}
+    return {"status": "ok", "message": "Fuzzy autopilot online"}
 
 
 @app.websocket("/ws/sim")
 async def websocket_simulation(websocket: WebSocket) -> None:
+    """
+    Manages a single WebSocket connection with one client.
+
+    Runs two concurrent tasks per connection:
+    - _command_receiver: listens for incoming JSON commands and enqueues them.
+    - _simulation_loop: ticks the simulation every TICK_INTERVAL seconds,
+     drains any queued commands, and pushes the new state to the client.
+
+    Both tasks share a Queue[str] as the only communication channel,
+    keeping them fully decoupled.
+    """
     await websocket.accept()
     _log.info("Client connected: %s", websocket.client)
 
@@ -101,6 +133,18 @@ async def _command_receiver(
     websocket: WebSocket,
     queue: asyncio.Queue[str],
 ) -> None:
+    """
+    Reads incoming text frames and enqueues them for the simulation loop.
+
+    Exits on any connection-level error so the parent can cancel the
+    paired simulation task and close cleanly.
+
+    Error surface:
+    - WebSocketDisconnect : clean close or code-1006 abrupt drop
+      (Starlette converts OSError → WebSocketDisconnect internally)
+    - RuntimeError        : send/receive on an already-closed socket
+                            (Starlette raises this on bad state transitions)
+    """
     try:
         async for raw in websocket.iter_text():
             if queue.full():
@@ -114,6 +158,23 @@ async def _simulation_loop(
     sim: AircraftSimulation,
     queue: asyncio.Queue[str],
 ) -> None:
+    """
+    Ticks the simulation at TICK_INTERVAL and pushes state to the client.
+
+    Each tick:
+    1. Drain all pending commands from the queue and apply them.
+    2. Advance the simulation by one step.
+    3. Serialize and send the new state to the client.
+    4. Sleep until the next tick.
+
+    Error surface (send_text):
+    - WebSocketDisconnect : connection closed while we were about to send
+    - RuntimeError        : state machine violation (e.g. already disconnected)
+
+    json.dumps() is intentionally left unguarded: a serialization failure
+    on SimulationState.to_dict() is a programming error, not a runtime one,
+    and should surface loudly as an unhandled exception.
+    """
     try:
         while True:
             _drain_commands(sim, queue)
@@ -127,6 +188,10 @@ async def _simulation_loop(
 
 
 def _drain_commands(sim: AircraftSimulation, queue: asyncio.Queue[str]) -> None:
+    """
+    Applies all currently queued commands to the simulation in FIFO order.
+    Non-blocking: only processes commands that are already in the queue.
+    """
     while not queue.empty():
         try:
             raw = queue.get_nowait()
@@ -136,6 +201,17 @@ def _drain_commands(sim: AircraftSimulation, queue: asyncio.Queue[str]) -> None:
 
 
 def _handle_command(sim: AircraftSimulation, raw: str) -> None:
+    """
+    Deserializes, validates, and dispatches a single JSON command.
+
+    Pydantic handles three concerns in one call:
+    - JSON parsing (replaces manual json.loads + JSONDecodeError guard)
+    - Type coercion  (e.g. "value" is guaranteed to be bool)
+    - Value validation (intensity must be one of the Literal options)
+
+    Unknown 'type' values and malformed JSON are silently ignored —
+    the client is not expected to receive error feedback for bad messages.
+    """
     try:
         command = _COMMAND_ADAPTER.validate_json(raw)
     except (ValidationError, ValueError):
