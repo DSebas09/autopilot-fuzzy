@@ -94,20 +94,35 @@ class FuzzyAutopilot:
         return self._compute(self._system_y, error_y)
 
 if __name__ == '__main__':
-    pilot = FuzzyAutopilot()
+    from typing import NamedTuple
 
-    cases = [
-        ("Zero error",              0.0,   0.0),
-        ("Small error X pos",       3.0,   0.0),
-        ("Large negative X error", -12.0,  0.0),
-        ("Error Y small neg",       0.0,  -4.0),
-        ("Both axes deviated",      8.0,  -8.0),
+    class Case(NamedTuple):
+        name: str
+        error_x: float
+        error_y: float
+
+    cases: list[Case] = [
+        Case("No error", 0.0, 0.0),
+        Case("Small positive X error", 3.0, 0.0),
+        Case("Large negative X error", -12.0, 0.0),
+        Case("Small negative Y error", 0.0, -4.0),
+        Case("Both axes misaligned", 8.0, -8.0),
+        Case("X edge exactly positive", 15.0, 0.0),
+        Case("X edge exactly negative", -15.0, 0.0),
+        Case("Y edge exactly positive", 0.0, 15.0),
+        Case("Y edge exactly negative", 0.0, -15.0),
     ]
 
-    print(f"\n{'Case':<30} {'Error X':>8} {'Error Y':>8} {'Ux':>8} {'Uy':>8}")
-    print("-" * 66)
-    for name, ex, ey in cases:
-        ux = pilot.compute_x(ex)
-        uy = pilot.compute_y(ey)
-        print(f"{name:<30} {ex:>8.2f} {ey:>8.2f} {ux:>8.3f} {uy:>8.3f}")
+    pilot = FuzzyAutopilot()
+
+    print(f"\n{'─' * 66}")
+    print(f"  {'Case':<28} {'Error X':>8} {'Error Y':>8} {'Ux':>8} {'Uy':>8}")
+    print(f"{'─' * 66}")
+
+    for c in cases:
+        ux = pilot.compute_x(c.error_x)
+        uy = pilot.compute_y(c.error_y)
+        print(f"  {c.name:<28} {c.error_x:>8.2f} {c.error_y:>8.2f} {ux:>8.3f} {uy:>8.3f}")
+
+    print(f"{'─' * 66}\n")
     print()
