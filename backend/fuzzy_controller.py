@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
@@ -17,6 +19,8 @@ UNIVERSE_STEP: float = 0.1
 # MF midpoints — derived from limits
 _ERROR_MID: float   = (ERROR_MAX - ERROR_MIN) / 4
 _CONTROL_MID: float = (CONTROL_MAX - CONTROL_MIN) / 4
+
+_log = logging.getLogger(__name__)
 
 
 def _build_fuzzy_system() -> ControlSystem:
@@ -57,6 +61,7 @@ class FuzzyAutopilot:
             sim = ctrl.ControlSystemSimulation(system)
             sim.input['error'] = error_clipped
             sim.compute()
+
             result = float(sim.output['correction'])
 
             if not np.isfinite(result):
@@ -67,7 +72,10 @@ class FuzzyAutopilot:
         except Exception as e:  # noqa: BLE001
             # Safe fallback: no active correction.
             # The simulator is still alive; the next tick will try again.
-            print("FuzzyAutopilot: inference failure (error=%.3f) → fallback 0.0 | %s: %s", e)
+            _log.warning(
+                "FuzzyAutopilot: inference failure (error=%.3f) → fallback 0.0 | %s: %s",
+                error_clipped, type(e).__name__, e,
+            )
             return 0.0
 
     def compute_x(self, error_x: float) -> float:
