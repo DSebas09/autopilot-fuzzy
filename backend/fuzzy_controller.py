@@ -1,3 +1,34 @@
+"""
+fuzzy_controller.py
+-------------------
+Mandani-type fuzzy controllers for the autopilot.
+Two independent SISO systems are defined (one per axis):
+- X-axis → roll correction
+- Y-axis → pitch correction
+
+Library: scikit-fuzzy (skfuzzy)
+Inference method: Mamdani
+Defuzzification: centroid (center of gravity)
+
+Universes:
+- Input (error): [ERROR_MIN, ERROR_MAX] → [-15°, +15°]
+- Output (correction): [CONTROL_MIN, CONTROL_MAX] → [-20°, +20°]
+
+Linguistic labels (5 per variable):
+    NG = Large Negative
+    NP = Small Negative
+    Z = Zero
+    PP = Small Positive
+    PG = Large Positive
+
+Rules (symmetric, identical for the X and Y axes) Y):
+    IF error is NG THEN correction is PG
+    IF error is NP THEN correction is PP
+    IF error is Z THEN correction is Z
+    IF error is PP THEN correction is NP
+    IF error is PG THEN correction is NG
+"""
+
 import logging
 
 import numpy as np
@@ -25,6 +56,14 @@ _CONTROL_MID: float = (CONTROL_MAX - CONTROL_MIN) / 4
 _log = logging.getLogger(__name__)
 
 def _make_trimfs(variable: ctrl.Antecedent | ctrl.Consequent, lo: float, mid: float, hi: float) -> None:
+    """
+    Assign the 5 symmetric triangular membership functions to a fuzzy variable (Antecedent or Consequent).
+
+    Resulting geometry:
+        NG: [lo, lo, -mid]   PG: [mid, hi, hi]
+        NP: [lo, -mid, 0.0]  PP: [0.0, mid, hi]
+        Z: [-mid, 0.0, mid]
+    """
     v = variable
     v['NG'] = fuzz.trimf(v.universe, [ lo,   lo,  -mid])
     v['NP'] = fuzz.trimf(v.universe, [ lo,  -mid,  0.0])
@@ -33,6 +72,14 @@ def _make_trimfs(variable: ctrl.Antecedent | ctrl.Consequent, lo: float, mid: fl
     v['PG'] = fuzz.trimf(v.universe, [ mid,  hi,   hi ])
 
 def _build_fuzzy_system() -> ControlSystem:
+    """
+    Builds and returns the Mamdani fuzzy control system (stateless).
+
+    This object is immutable once built: it contains the universes,
+    the membership functions, and the rules, but does NOT store input/output values.
+
+    It is safe to share it between concurrent calls.
+    """
     error      = ctrl.Antecedent(np.arange(ERROR_MIN, ERROR_MAX + UNIVERSE_STEP, UNIVERSE_STEP), 'error')
     correction = ctrl.Consequent(np.arange(CONTROL_MIN, CONTROL_MAX + UNIVERSE_STEP, UNIVERSE_STEP), 'correction')
 
@@ -62,6 +109,21 @@ class FuzzyAutopilot:
         self._system_y = _build_fuzzy_system()
 
     def _compute(self, system: ctrl.ControlSystem, error_val: float) -> float:
+        """
+        Executes the fuzzy inference cycle for a given axis.
+
+        Creates a local ControlSystemSimulation per call—this ensures that it has not been shared between concurrent invocations.
+
+        Internal steps (Mamdani):
+        1. Fuzzification: maps error_val to membership degrees
+        2. Evaluation: applies the AND operator (min) between antecedents
+        3. Implication: clips each activated consequent
+        4. Aggregation: joins the clipped consequents (max)
+        5. Defuzzification: calculates the centroid of the aggregated area
+
+        Returns the control correction (float in [-20, +20]).
+        Returns 0.0 as a safe fallback if the inference cycle fails.
+        """
         error_clipped = float(np.clip(error_val, ERROR_MIN, ERROR_MAX))
 
         try:
