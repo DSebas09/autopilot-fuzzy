@@ -24,31 +24,31 @@ _CONTROL_MID: float = (CONTROL_MAX - CONTROL_MIN) / 4
 
 _log = logging.getLogger(__name__)
 
+def _make_trimfs(variable: ctrl.Antecedent | ctrl.Consequent, lo: float, mid: float, hi: float) -> None:
+    v = variable
+    v['NG'] = fuzz.trimf(v.universe, [ lo,   lo,  -mid])
+    v['NP'] = fuzz.trimf(v.universe, [ lo,  -mid,  0.0])
+    v['Z']  = fuzz.trimf(v.universe, [-mid,  0.0,  mid])
+    v['PP'] = fuzz.trimf(v.universe, [ 0.0,  mid,  hi ])
+    v['PG'] = fuzz.trimf(v.universe, [ mid,  hi,   hi ])
 
 def _build_fuzzy_system() -> ControlSystem:
     error      = ctrl.Antecedent(np.arange(ERROR_MIN, ERROR_MAX + UNIVERSE_STEP, UNIVERSE_STEP), 'error')
     correction = ctrl.Consequent(np.arange(CONTROL_MIN, CONTROL_MAX + UNIVERSE_STEP, UNIVERSE_STEP), 'correction')
 
-    error['NG'] = fuzz.trimf(error.universe, [ERROR_MIN, ERROR_MIN, -_ERROR_MID])
-    error['NP'] = fuzz.trimf(error.universe, [ERROR_MIN, -_ERROR_MID, 0.0])
-    error['Z']  = fuzz.trimf(error.universe, [-_ERROR_MID, 0.0, _ERROR_MID])
-    error['PP'] = fuzz.trimf(error.universe, [0.0, _ERROR_MID, ERROR_MAX])
-    error['PG'] = fuzz.trimf(error.universe, [_ERROR_MID, ERROR_MAX, ERROR_MAX])
+    _make_trimfs(error, lo=ERROR_MIN, mid=_ERROR_MID, hi=ERROR_MAX)
+    _make_trimfs(correction, lo=CONTROL_MIN, mid=_CONTROL_MID, hi=CONTROL_MAX)
 
-    correction['NG'] = fuzz.trimf(correction.universe, [CONTROL_MIN, CONTROL_MIN, -_CONTROL_MID])
-    correction['NP'] = fuzz.trimf(correction.universe, [CONTROL_MIN, -_CONTROL_MID, 0.0])
-    correction['Z']  = fuzz.trimf(correction.universe, [-_CONTROL_MID, 0.0, _CONTROL_MID])
-    correction['PP'] = fuzz.trimf(correction.universe, [0.0, _CONTROL_MID, CONTROL_MAX])
-    correction['PG'] = fuzz.trimf(correction.universe, [_CONTROL_MID, CONTROL_MAX, CONTROL_MAX])
+    # Symmetrical rules: each label is paired with its inverse opposite
+    labels = ['NG', 'NP', 'Z', 'PP', 'PG']
+    corrections = ['PG', 'PP', 'Z', 'NP', 'NG']
 
-    rule_1 = ctrl.Rule(error['NG'], correction['PG'])
-    rule_2 = ctrl.Rule(error['NP'], correction['PP'])
-    rule_3 = ctrl.Rule(error['Z'],  correction['Z'])
-    rule_4 = ctrl.Rule(error['PP'], correction['NP'])
-    rule_5 = ctrl.Rule(error['PG'], correction['NG'])
+    rules = [
+        ctrl.Rule(error[e], correction[c])
+        for e, c in zip(labels, corrections)
+    ]
 
-    system = ctrl.ControlSystem([rule_1, rule_2, rule_3, rule_4, rule_5])
-    return system
+    return ctrl.ControlSystem(rules)
 
 
 class FuzzyAutopilot:
