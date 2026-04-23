@@ -21,7 +21,7 @@ Linguistic labels (5 per variable):
     PP = Small Positive
     PG = Large Positive
 
-Rules (symmetric, identical for the X and Y axes) Y):
+Rules (symmetric, identical for the X and Y axes):
     IF error is NG THEN correction is PG
     IF error is NP THEN correction is PP
     IF error is Z THEN correction is Z
@@ -88,11 +88,11 @@ def _build_fuzzy_system() -> ControlSystem:
 
     # Symmetrical rules: each label is paired with its inverse opposite
     labels = ['NG', 'NP', 'Z', 'PP', 'PG']
-    corrections = ['PG', 'PP', 'Z', 'NP', 'NG']
+    mirror = ['PG', 'PP', 'Z', 'NP', 'NG']
 
     rules = [
         ctrl.Rule(error[e], correction[c])
-        for e, c in zip(labels, corrections)
+        for e, c in zip(labels, mirror)
     ]
 
     return ctrl.ControlSystem(rules)
