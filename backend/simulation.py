@@ -1,3 +1,35 @@
+"""
+simulation.py
+-------------
+2D simulation engine for the fuzzy autopilot system.
+
+Models aircraft behavior on two independent axes:
+    X-axis → roll  (lateral banking)
+    Y-axis → pitch (nose up/down)
+
+Euler integration dynamics (per axis, per tick):
+    velocity(t+dt) = (velocity(t) + accel(t) * DT) * DAMPING
+    position(t+dt) =  position(t) + velocity(t+dt) * DT
+
+Where:
+    accel(t) = control_force(t) + turbulence(t)
+    control_force(t) = -FuzzyAutopilot.compute(position(t)) * CONTROL_GAIN
+
+The negative sign on control_force makes the fuzzy output a restoring force:
+a positive deviation produces a negative correction, driving the aircraft
+back toward the origin.
+
+All magnitudes are in abstract "degrees" units.
+
+Tunable parameters (module-level constants):
+    DT                — integration time step
+    DAMPING           — aerodynamic friction coefficient
+    CONTROL_GAIN      — fuzzy output scaling factor
+    POSITION_LIMIT    — maximum allowed deviation (must match fuzzy universe)
+    TURBULENCE_PARAMS — noise amplitude per intensity level
+    PULSE_AMPLITUDES  — burst amplitude per intensity level
+"""
+
 import random
 from dataclasses import dataclass
 from typing import Literal
@@ -44,6 +76,8 @@ PULSE_DURATION_TICKS: int = 8
 
 @dataclass(slots=True)
 class SimulationState:
+    """Complete aircraft state at a single instant t."""
+
     time: float = 0.0
 
     pos_x: float = 0.0  # roll
@@ -61,6 +95,7 @@ class SimulationState:
     turbulence_intensity: TurbulenceIntensity = "low"
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize state to the WebSocket JSON protocol format."""
         return {
             "type": "state",
             "time": round(self.time, 3),
@@ -85,6 +120,16 @@ class SimulationState:
 
 
 class AircraftSimulation:
+    """
+    Autopilot simulation engine.
+
+    Tick cycle (call step() once per tick):
+        1. Generate random turbulence perturbation
+        2. Compute fuzzy correction for each axis
+        3. Integrate velocity and position (Euler)
+        4. Update and return internal state
+    """
+
     def __init__(self) -> None:
         self.autopilot = FuzzyAutopilot()
         self.state = SimulationState()
@@ -96,22 +141,34 @@ class AircraftSimulation:
         self._pulse_amplitude: float = 0.0
 
     def reset(self) -> None:
+        """Reset the aircraft to level flight with all values zeroed."""
         self.state = SimulationState()
         self._pulse_ticks_remaining = 0
 
     def set_turbulence_intensity(self, intensity: TurbulenceIntensity) -> None:
+        """Set the continuous background turbulence level."""
         self._intensity = intensity
         self.state.turbulence_intensity = intensity
 
     def trigger_pulse(self, intensity: TurbulenceIntensity) -> None:
+        """
+        Apply a sharp turbulence burst lasting PULSE_DURATION_TICKS ticks.
+        Intended for the 'Turbulence Pulse' button on the frontend.
+        """
         self._pulse_ticks_remaining = PULSE_DURATION_TICKS
         self._pulse_amplitude = PULSE_AMPLITUDES[intensity]
         self.set_turbulence_intensity(intensity)
 
     def set_paused(self, value: bool) -> None:
+        """Pause or resume the simulation loop."""
         self.paused = value
 
     def step(self) -> SimulationState:
+        """
+        Advance the simulation by one tick (DT seconds).
+        Returns the updated state.
+        If paused, returns the current state unchanged.
+        """
         if self.paused:
             return self.state
 
@@ -146,11 +203,22 @@ class AircraftSimulation:
         return self.state
 
     def _euler_step(self, pos: float, vel: float, accel: float) -> tuple[float, float]:
+        """
+        Advance one axis by DT using Euler integration with aerodynamic damping.
+        Returns (new_pos, new_vel).
+        """
         new_vel = (vel + accel * DT) * DAMPING
         new_pos = pos + new_vel * DT
         return new_pos, new_vel
 
     def _generate_turbulence(self) -> tuple[float, float]:
+        """
+        Generate a random perturbation for this tick.
+
+        Combines two sources:
+        - Continuous background noise: Gaussian noise scaled by the active intensity level
+        - Pulse burst: higher amplitude for PULSE_DURATION_TICKS ticks after trigger_pulse()
+        """
         amp = TURBULENCE_PARAMS[self._intensity]
         turb_x = random.gauss(0, amp * 0.3)
         turb_y = random.gauss(0, amp * 0.3)
