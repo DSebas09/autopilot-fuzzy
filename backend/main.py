@@ -1,11 +1,35 @@
 import asyncio
 import json
 import logging
+from typing import Literal, Annotated, Union
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import TypeAdapter, BaseModel, Field, ValidationError
 
-from simulation import AircraftSimulation, DT
+from simulation import AircraftSimulation, DT, TurbulenceIntensity
+
+
+class ResetCommand(BaseModel):
+    type: Literal["reset"]
+
+
+class TurbulencePulseCommand(BaseModel):
+    type: Literal["turbulence_pulse"]
+    intensity: TurbulenceIntensity = "medium"
+
+
+class PauseCommand(BaseModel):
+    type: Literal["pause"]
+    value: bool
+
+
+# Discriminated union — Pydantic uses the "type" field to route
+# each incoming message to the correct model automatically.
+WsCommand = Annotated[
+    Union[ResetCommand, TurbulencePulseCommand, PauseCommand],
+    Field(discriminator="type"),
+]
 
 logging.basicConfig(level=logging.INFO)
 _log = logging.getLogger(__name__)
@@ -112,18 +136,16 @@ def _drain_commands(sim: AircraftSimulation, queue: asyncio.Queue[str]) -> None:
 
 def _handle_command(sim: AircraftSimulation, raw: str) -> None:
     try:
-        msg = json.loads(raw)
-    except json.JSONDecodeError:
+        command = TypeAdapter(WsCommand).validate_json(raw)
+    except (ValidationError, ValueError):
         return
 
-    match msg.get("type"):
-        case "reset":
+    match command:
+        case ResetCommand():
             sim.reset()
-        case "turbulence_pulse":
-            intensity = msg.get("intensity", "medium")
-            if intensity in VALID_INTENSITIES:
-                sim.trigger_pulse(intensity)
-        case "pause":
-            sim.set_paused(bool(msg.get("value", False)))
+        case TurbulencePulseCommand():
+            sim.trigger_pulse(command.intensity)
+        case PauseCommand():
+            sim.set_paused(command.value)
         case _:
             pass  # Unknown command type. Ignore silently
