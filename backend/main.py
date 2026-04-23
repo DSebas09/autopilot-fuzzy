@@ -77,11 +77,10 @@ async def _command_receiver(
     try:
         async for raw in websocket.iter_text():
             if queue.full():
-                queue.get_nowait()   # Drop oldest command to make room
+                queue.get_nowait()  # Drop oldest to make room
             await queue.put(raw)
-    except WebSocketDisconnect:
-        pass
-
+    except (WebSocketDisconnect, RuntimeError):
+        pass  # Signal exit to asyncio.wait()
 
 async def _simulation_loop(
     websocket: WebSocket,
@@ -97,7 +96,7 @@ async def _simulation_loop(
 
             await asyncio.sleep(TICK_INTERVAL)
     except (WebSocketDisconnect, RuntimeError):
-        pass
+        pass  # Signal exit to asyncio.wait()
 
 
 def _drain_commands(sim: AircraftSimulation, queue: asyncio.Queue[str]) -> None:
