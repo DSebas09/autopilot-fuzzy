@@ -124,11 +124,8 @@ class AircraftSimulation:
         accel_x = force_x + turb_x
         accel_y = force_y + turb_y
 
-        new_vel_x = (self.state.vel_x + accel_x * DT) * DAMPING
-        new_vel_y = (self.state.vel_y + accel_y * DT) * DAMPING
-
-        new_pos_x = self.state.pos_x + new_vel_x * DT
-        new_pos_y = self.state.pos_y + new_vel_y * DT
+        new_pos_x, new_vel_x = self._euler_step(self.state.pos_x, self.state.vel_x, accel_x)
+        new_pos_y, new_vel_y = self._euler_step(self.state.pos_y, self.state.vel_y, accel_y)
 
         new_pos_x = max(-POSITION_LIMIT, min(POSITION_LIMIT, new_pos_x))
         new_pos_y = max(-POSITION_LIMIT, min(POSITION_LIMIT, new_pos_y))
@@ -145,6 +142,11 @@ class AircraftSimulation:
         self.state.turbulence_intensity = self._intensity
 
         return self.state
+
+    def _euler_step(self, pos: float, vel: float, accel: float) -> tuple[float, float]:
+        new_vel = (vel + accel * DT) * DAMPING
+        new_pos = pos + new_vel * DT
+        return new_pos, new_vel
 
     def _generate_turbulence(self) -> tuple[float, float]:
         amp = TURBULENCE_PARAMS[self._intensity]
