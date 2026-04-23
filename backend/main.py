@@ -37,7 +37,8 @@ _log = logging.getLogger(__name__)
 TICK_INTERVAL: float = DT          # Keeps main.py in sync with simulation.py
 COMMAND_QUEUE_SIZE: int = 32       # Max buffered commands before dropping oldest
 
-VALID_INTENSITIES: frozenset[str] = frozenset({"low", "medium", "high"})
+# Built once at module load. TypeAdapter is reusable and construction is not free
+_COMMAND_ADAPTER: TypeAdapter[WsCommand] = TypeAdapter(WsCommand)
 
 ALLOWED_ORIGINS: list[str] = [
     "http://localhost:5173",       # Vite dev server
@@ -136,7 +137,7 @@ def _drain_commands(sim: AircraftSimulation, queue: asyncio.Queue[str]) -> None:
 
 def _handle_command(sim: AircraftSimulation, raw: str) -> None:
     try:
-        command = TypeAdapter(WsCommand).validate_json(raw)
+        command = _COMMAND_ADAPTER.validate_json(raw)
     except (ValidationError, ValueError):
         return
 
