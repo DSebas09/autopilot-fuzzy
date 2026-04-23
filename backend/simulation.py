@@ -2,6 +2,8 @@ import random
 from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
+
 from fuzzy_controller import FuzzyAutopilot
 
 TurbulenceIntensity = Literal["low", "medium", "high"]
@@ -127,8 +129,8 @@ class AircraftSimulation:
         new_pos_x, new_vel_x = self._euler_step(self.state.pos_x, self.state.vel_x, accel_x)
         new_pos_y, new_vel_y = self._euler_step(self.state.pos_y, self.state.vel_y, accel_y)
 
-        new_pos_x = max(-POSITION_LIMIT, min(POSITION_LIMIT, new_pos_x))
-        new_pos_y = max(-POSITION_LIMIT, min(POSITION_LIMIT, new_pos_y))
+        new_pos_x = float(np.clip(new_pos_x, -POSITION_LIMIT, POSITION_LIMIT))
+        new_pos_y = float(np.clip(new_pos_y, -POSITION_LIMIT, POSITION_LIMIT))
 
         self.state.time    += DT
         self.state.pos_x    = new_pos_x
