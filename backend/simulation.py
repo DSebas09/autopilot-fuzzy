@@ -40,7 +40,7 @@ PULSE_AMPLITUDES: dict[TurbulenceIntensity, float] = {
 PULSE_DURATION_TICKS: int = 8
 
 
-@dataclass
+@dataclass(slots=True)
 class SimulationState:
     time: float = 0.0
 
@@ -58,7 +58,7 @@ class SimulationState:
 
     turbulence_intensity: TurbulenceIntensity = "low"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {
             "type": "state",
             "time": round(self.time, 3),
@@ -83,7 +83,7 @@ class SimulationState:
 
 
 class AircraftSimulation:
-    def __init__(self):
+    def __init__(self) -> None:
         self.autopilot = FuzzyAutopilot()
         self.state = SimulationState()
         self.paused: bool = False
