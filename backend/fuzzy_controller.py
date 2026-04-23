@@ -1,9 +1,10 @@
 import numpy as np
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
+from skfuzzy.control import ControlSystem
 
 
-def _build_fuzzy_system() -> ctrl.ControlSystemSimulation:
+def _build_fuzzy_system() -> ControlSystem:
     error      = ctrl.Antecedent(np.arange(-15, 15.1, 0.1), 'error')
     correction = ctrl.Consequent(np.arange(-20, 20.1, 0.1), 'correction')
 
@@ -26,29 +27,30 @@ def _build_fuzzy_system() -> ctrl.ControlSystemSimulation:
     rule_5 = ctrl.Rule(error['PG'], correction['NG'])
 
     system = ctrl.ControlSystem([rule_1, rule_2, rule_3, rule_4, rule_5])
-    simulation = ctrl.ControlSystemSimulation(system)
-
-    return simulation
+    return system
 
 
 class FuzzyAutopilot:
     def __init__(self):
-        self.sim_x = _build_fuzzy_system()
-        self.sim_y = _build_fuzzy_system()
+        self._system_x = _build_fuzzy_system()
+        self._system_y = _build_fuzzy_system()
 
-    def _compute(self, sim: ctrl.ControlSystemSimulation, error_val: float) -> float:
+    def _compute(self, system: ctrl.ControlSystem, error_val: float) -> float:
         error_clipped = float(np.clip(error_val, -15.0, 15.0))
 
+        sim = ctrl.ControlSystemSimulation(system)
         sim.input['error'] = error_clipped
         sim.compute()
 
         return float(sim.output['correction'])
 
     def compute_x(self, error_x: float) -> float:
-        return self._compute(self.sim_x, error_x)
+        """Calculate the correction for the X-axis (roll)."""
+        return self._compute(self._system_x, error_x)
 
     def compute_y(self, error_y: float) -> float:
-        return self._compute(self.sim_y, error_y)
+        """Calculate the correction for the Y-axis (pitch)."""
+        return self._compute(self._system_y, error_y)
 
 if __name__ == '__main__':
     pilot = FuzzyAutopilot()
