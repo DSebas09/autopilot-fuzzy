@@ -5,6 +5,8 @@ import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 from skfuzzy.control import ControlSystem
 
+__all__ = ["FuzzyAutopilot"]
+
 # Universe of the input variable (deviation error, in degrees)
 ERROR_MIN: float = -15.0
 ERROR_MAX: float =  15.0
@@ -50,7 +52,12 @@ def _build_fuzzy_system() -> ControlSystem:
 
 
 class FuzzyAutopilot:
-    def __init__(self):
+    _system_x: ctrl.ControlSystem
+    _system_y: ctrl.ControlSystem
+
+    def __init__(self) -> None:
+        # ControlSystem is stateless: it is built once and shared.
+        # The ControlSystemSimulation (stateful) is instantiated on each _compute().
         self._system_x = _build_fuzzy_system()
         self._system_y = _build_fuzzy_system()
 
