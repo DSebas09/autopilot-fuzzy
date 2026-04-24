@@ -6,17 +6,20 @@
  * Vue / canvas modules (state consumers).
  *
  * Exposes:
- * - simState: ref() with the latest SimState received from the server
- * - status: WebSocket connection status ('connecting' | 'connected' | 'disconnected')
- * - paused: local ref() that reflects whether the simulation is paused
- * - sendCommand(): sends a WebSocket Command to the server
+ * - simState:      ref() with the latest SimState received from the server
+ * - status:        WebSocket connection status
+ * - paused:        local ref() — reflects pause state, guarded by sendCommand result
+ * - sendCommand():  sends a typed WsCommand to the server
+ * - reset():        resets the simulation to initial state
+ * - triggerPulse(): triggers a turbulence pulse at the given intensity
+ * - togglePause():  toggles the pause state
  */
 
 import { ref } from 'vue'
 import { useWebSocket } from './useWebSocket'
 import type {SimState, TurbulenceIntensity, WsMessage} from '@/types/simulation'
 
-/** Initial state of the aircraft - everything at zero, low intensity */
+/** Initial aircraft state, all axes zeroed, turbulence at low intensity */
 const INITIAL_STATE: SimState = {
     type:                 'state',
     time:                 0,
@@ -37,11 +40,11 @@ export function useSimState() {
 
     const { status, sendCommand } = useWebSocket(handleMessage)
 
-    function reset() {
+    function reset(): void {
         sendCommand({ type: 'reset' })
     }
 
-    function triggerPulse(intensity: TurbulenceIntensity) {
+    function triggerPulse(intensity: TurbulenceIntensity): void {
         sendCommand({ type: 'turbulence_pulse', intensity })
     }
 
