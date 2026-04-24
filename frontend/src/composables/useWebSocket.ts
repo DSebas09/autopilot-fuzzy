@@ -90,10 +90,12 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
         reconnectTimer = setTimeout(connect, delay)
     }
 
-    function sendCommand(cmd: WsCommand): void {
+    function sendCommand(cmd: WsCommand): boolean {
         if (socket?.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify(cmd))
+            return true
         }
+        return false
     }
 
     onUnmounted(() => {

@@ -45,9 +45,10 @@ export function useSimState() {
         sendCommand({ type: 'turbulence_pulse', intensity })
     }
 
-    function togglePause() {
-        paused.value = !paused.value
-        sendCommand({ type: 'pause', value: paused.value })
+    function togglePause(): void {
+        const next = !paused.value
+        const dispatched = sendCommand({ type: 'pause', value: next })
+        if (dispatched) paused.value = next  // only update if command reached the server
     }
 
     return {
