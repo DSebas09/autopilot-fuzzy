@@ -71,3 +71,28 @@ export type WsCommand =
     | ResetCommand
     | TurbulencePulseCommand
     | PauseCommand;
+
+/**
+ * Narrows an unknown WebSocket payload to SimState.
+ *
+ * Checks structural shape rather than deep field equality — the backend
+ * (Pydantic) guarantees value correctness before serialization, so we
+ * only need to confirm the message is the type we expect.
+ *
+ * Usage:
+ *   const msg: unknown = JSON.parse(raw)
+ *   if (isSimState(msg)) { ... } // msg is SimState here
+ */
+export function isSimState(msg: unknown): msg is SimState {
+    return (
+        typeof msg === 'object' &&
+        msg !== null &&
+        (msg as Record<string, unknown>)['type'] === 'state' &&
+        'time'                  in msg &&
+        'position'              in msg &&
+        'velocity'              in msg &&
+        'control'               in msg &&
+        'turbulence'            in msg &&
+        'turbulence_intensity'  in msg
+    )
+}
