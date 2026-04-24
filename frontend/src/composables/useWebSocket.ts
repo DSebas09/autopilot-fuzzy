@@ -27,9 +27,9 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
     const status = ref<ConnectionStatus>('connecting')
 
     let socket: WebSocket | null = null
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let destroyed = false         // Component has been unmounted
     let intentionalClose = false  // Current close was triggered by us, not by network
+    let reconnectTimer:   number | null = null
     let reconnectAttempt = 0
 
     function connect() {
