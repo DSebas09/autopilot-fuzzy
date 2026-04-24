@@ -19,7 +19,9 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
 // WebSocket URL - in dev Vite it proxies /ws to localhost:8000
 const WS_URL = `ws://${window.location.hostname}:8000/ws/sim`
-const RECONNECT_DELAY = 2000
+const RECONNECT_BASE_DELAY  = 2_000   // ms — first retry delay
+const RECONNECT_MAX_DELAY   = 30_000  // ms — cap, never grows beyond this
+const RECONNECT_MAX_JITTER  = 500     // ms — random noise added to each delay
 
 export function useWebSocket(onMessage: (msg: WsMessage) => void) {
     const status = ref<ConnectionStatus>('connecting')
@@ -28,6 +30,7 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let destroyed = false         // Component has been unmounted
     let intentionalClose = false  // Current close was triggered by us, not by network
+    let reconnectAttempt = 0
 
     function connect() {
         if (destroyed) return
@@ -36,7 +39,8 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
         socket = new WebSocket(WS_URL)
 
         socket.onopen = () => {
-            status.value = 'connected'
+            status.value    = 'connected'
+            reconnectAttempt = 0   // reset on successful connection
         }
 
         socket.onmessage = (event: MessageEvent) => {
@@ -73,9 +77,16 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
         }
     }
 
-    function scheduleReconnect() {
+    function scheduleReconnect(): void {
         if (destroyed) return
-        reconnectTimer = setTimeout(connect, RECONNECT_DELAY)
+
+        const exponential = RECONNECT_BASE_DELAY * 2 ** reconnectAttempt
+        const capped      = Math.min(exponential, RECONNECT_MAX_DELAY)
+        const jitter      = Math.random() * RECONNECT_MAX_JITTER
+        const delay       = Math.floor(capped + jitter)
+
+        reconnectAttempt++
+        reconnectTimer = setTimeout(connect, delay)
     }
 
     function sendCommand(cmd: WsCommand) {
