@@ -15,18 +15,19 @@
 import { ref, onUnmounted } from 'vue'
 import {type WsMessage, type WsCommand, isSimState} from '@/types/simulation'
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+
 // WebSocket URL - in dev Vite it proxies /ws to localhost:8000
 const WS_URL = `ws://${window.location.hostname}:8000/ws/sim`
 const RECONNECT_DELAY = 2000
-
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
 export function useWebSocket(onMessage: (msg: WsMessage) => void) {
     const status = ref<ConnectionStatus>('connecting')
 
     let socket: WebSocket | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    let destroyed = false
+    let destroyed = false         // Component has been unmounted
+    let intentionalClose = false  // Current close was triggered by us, not by network
 
     function connect() {
         if (destroyed) return
@@ -57,7 +58,12 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
         socket.onclose = () => {
             status.value = 'disconnected'
             socket = null
-            scheduleReconnect()
+
+            if (!intentionalClose) {
+                scheduleReconnect()   // Only reconnect on unexpected drops
+            }
+
+            intentionalClose = false  // Reset for the next connection cycle
         }
 
         socket.onerror = () => {
@@ -80,6 +86,7 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
 
     onUnmounted(() => {
         destroyed = true
+        intentionalClose = true   // Signal: this close is on purpose
         if (reconnectTimer) clearTimeout(reconnectTimer)
         socket?.close()
     })
