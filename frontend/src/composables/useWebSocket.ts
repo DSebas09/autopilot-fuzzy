@@ -4,12 +4,13 @@
  * Composable that manages the WebSocket connection with the backend.
  *
  * Responsibilities:
- * - Automatically connect and reconnect if the connection is lost
- * - Parse incoming messages as typed WsMessages
- * - Expose the reactive connection state
- * - Provide sendCommand() to send commands to the server
+ * - Automatically connect and reconnect on unexpected disconnections
+ * - Parse and narrow incoming messages via type guard before dispatching
+ * - Expose reactive connection status
+ * - Provide sendCommand() to send typed commands to the server
  *
- * Does NOT handle the simulation state; that is the responsibility of useSimState.ts. This composable only handles the transport.
+ * Does NOT manage simulation state — that is useSimState.ts responsibility.
+ * This composable handles transport only.
  */
 
 import { ref, onUnmounted } from 'vue'
@@ -21,18 +22,18 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 const WS_URL = `ws://${window.location.hostname}:8000/ws/sim`
 const RECONNECT_BASE_DELAY  = 2_000   // ms — first retry delay
 const RECONNECT_MAX_DELAY   = 30_000  // ms — cap, never grows beyond this
-const RECONNECT_MAX_JITTER  = 500     // ms — random noise added to each delay
+const RECONNECT_MAX_JITTER  = 500     // ms — random noise to spread reconnect storms
 
 export function useWebSocket(onMessage: (msg: WsMessage) => void) {
     const status = ref<ConnectionStatus>('connecting')
 
     let socket: WebSocket | null = null
-    let destroyed = false         // Component has been unmounted
-    let intentionalClose = false  // Current close was triggered by us, not by network
     let reconnectTimer:   number | null = null
+    let destroyed = false
+    let intentionalClose = false
     let reconnectAttempt = 0
 
-    function connect() {
+    function connect(): void {
         if (destroyed) return
 
         status.value = 'connecting'
@@ -71,7 +72,7 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
         }
 
         socket.onerror = () => {
-            // onerror is always followed by onclose, so
+            // onerror is always followed by onclose
             // reconnection is handled there
             status.value = 'disconnected'
         }
@@ -89,7 +90,7 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
         reconnectTimer = setTimeout(connect, delay)
     }
 
-    function sendCommand(cmd: WsCommand) {
+    function sendCommand(cmd: WsCommand): void {
         if (socket?.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify(cmd))
         }
