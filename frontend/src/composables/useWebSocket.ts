@@ -13,7 +13,7 @@
  */
 
 import { ref, onUnmounted } from 'vue'
-import type { WsMessage, WsCommand } from '@/types/simulation'
+import {type WsMessage, type WsCommand, isSimState} from '@/types/simulation'
 
 // WebSocket URL - in dev Vite it proxies /ws to localhost:8000
 const WS_URL = `ws://${window.location.hostname}:8000/ws/sim`
@@ -40,10 +40,17 @@ export function useWebSocket(onMessage: (msg: WsMessage) => void) {
 
         socket.onmessage = (event: MessageEvent) => {
             try {
-                const msg = JSON.parse(event.data as string) as WsMessage
-                onMessage(msg)
+                const msg = JSON.parse(event.data as string)
+
+                if (isSimState(msg)) {
+                    onMessage(msg) // msg is SimState here, fully narrowed, zero casts
+                    return
+                }
+
+                // Logged but not thrown — unknown frames are non-fatal
+                console.warn('[WS] Unrecognized message frame:', msg)
             } catch {
-                // Ignore malformed messages
+                console.warn('[WS] Failed to parse message frame:', event.data)
             }
         }
 
