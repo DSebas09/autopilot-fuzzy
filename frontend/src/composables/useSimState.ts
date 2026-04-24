@@ -14,7 +14,7 @@
 
 import { ref } from 'vue'
 import { useWebSocket } from './useWebSocket'
-import type { SimState, WsCommand, TurbulenceIntensity } from '@/types/simulation'
+import type {SimState, WsCommand, TurbulenceIntensity, WsMessage} from '@/types/simulation'
 
 /** Initial state of the aircraft - everything at zero, low intensity */
 const INITIAL_STATE: SimState = {
@@ -31,7 +31,7 @@ export function useSimState() {
     const simState = ref<SimState>({ ...INITIAL_STATE })
     const paused = ref(false)
 
-    function handleMessage(msg: SimState) {
+    function handleMessage(msg: WsMessage): void {
         simState.value = msg
     }
 
