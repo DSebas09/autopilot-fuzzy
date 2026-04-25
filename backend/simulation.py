@@ -177,8 +177,8 @@ class AircraftSimulation:
         ux = self.autopilot.compute_x(self.state.pos_x)
         uy = self.autopilot.compute_y(self.state.pos_y)
 
-        force_x = -ux * CONTROL_GAIN
-        force_y = -uy * CONTROL_GAIN
+        force_x = ux * CONTROL_GAIN
+        force_y = uy * CONTROL_GAIN
 
         accel_x = force_x + turb_x
         accel_y = force_y + turb_y
