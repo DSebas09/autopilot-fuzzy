@@ -1,3 +1,5 @@
+import {drawBezel, drawCircle, drawGlassGlare} from "@/canvas/utils.ts";
+
 const PITCH_SCALE = 3.5
 const PITCH_MARKS = [-20, -10, 0, 10, 20]
 const ROLL_MARK_DEGREES = [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60]
@@ -11,32 +13,7 @@ interface HorizonContext {
     pitchOffset: number
 }
 
-const drawCircle = (ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, style: string | CanvasGradient, isStroke = false) => {
-    ctx.beginPath()
-    ctx.arc(cx, cy, r, 0, Math.PI * 2)
-    if (isStroke) {
-        ctx.strokeStyle = style
-        ctx.stroke()
-    } else {
-        ctx.fillStyle = style
-        ctx.fill()
-    }
-}
 
-const drawBezel = (ctx: CanvasRenderingContext2D, h: HorizonContext) => {
-    const bevelGrad = ctx.createRadialGradient(
-        h.cx - h.radius * 0.3, h.cy - h.radius * 0.3, h.radius * 0.4,
-        h.cx, h.cy, h.radius
-    )
-    bevelGrad.addColorStop(0, '#666666')
-    bevelGrad.addColorStop(0.6, '#2a2a2a')
-    bevelGrad.addColorStop(1, '#0a0a0a')
-
-    drawCircle(ctx, h.cx, h.cy, h.radius, bevelGrad)
-
-    ctx.lineWidth = 1
-    drawCircle(ctx, h.cx, h.cy, h.radius, '#000', true)
-}
 
 const drawSkyAndGround = (ctx: CanvasRenderingContext2D, h: HorizonContext) => {
     const skyGrad = ctx.createLinearGradient(0, -h.innerRadius, 0, 0)
@@ -126,9 +103,7 @@ const drawAirplaneIcon = (ctx: CanvasRenderingContext2D, h: HorizonContext) => {
 
     const w = h.radius * 0.6
     const t = h.radius * 0.08
-    const color = '#f39c12'
-
-    ctx.fillStyle = color
+    ctx.fillStyle = '#f39c12'
 
     ctx.fillRect(-t / 2, -t * 1.5, t, t * 3)
 
@@ -159,22 +134,7 @@ const drawAirplaneIcon = (ctx: CanvasRenderingContext2D, h: HorizonContext) => {
     ctx.restore()
 }
 
-const drawGlassGlare = (ctx: CanvasRenderingContext2D, h: HorizonContext) => {
-    ctx.beginPath()
-    ctx.arc(h.cx, h.cy, h.innerRadius, Math.PI + 0.2, Math.PI * 2 - 0.2)
-    ctx.ellipse(h.cx, h.cy - h.radius * 0.2, h.innerRadius * 0.8, h.innerRadius * 0.4, 0, 0, Math.PI, true)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)'
-    ctx.fill()
-}
-
-export function drawHorizon(
-    ctx: CanvasRenderingContext2D,
-    cx: number,
-    cy: number,
-    radius: number,
-    roll: number,
-    pitch: number
-): void {
+export function drawHorizon(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, roll: number, pitch: number): void {
     ctx.save()
 
     const hContext: HorizonContext = {
@@ -186,7 +146,7 @@ export function drawHorizon(
         pitchOffset: pitch * PITCH_SCALE
     }
 
-    drawBezel(ctx, hContext)
+    drawBezel(ctx, hContext.cx, hContext.cy, hContext.radius)
 
     ctx.save()
     ctx.beginPath()
@@ -204,10 +164,10 @@ export function drawHorizon(
     drawSkyAndGround(ctx, hContext)
     drawPitchMarks(ctx, hContext)
     ctx.restore()
-
     ctx.restore()
 
-    drawGlassGlare(ctx, hContext)
+    drawGlassGlare(ctx, hContext.cx, hContext.cy, hContext.radius, hContext.innerRadius)
+
     drawRollIndicator(ctx, hContext)
     drawAirplaneIcon(ctx, hContext)
 

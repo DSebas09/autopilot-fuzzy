@@ -3,6 +3,7 @@
  * --------
  * Improved analog circular instrument with corrected rotation.
  */
+import {drawBezel, drawCircle, drawGlassGlare, polarToCartesian} from "@/canvas/utils.ts";
 
 export interface GaugeConfig {
     cx: number
@@ -21,41 +22,6 @@ interface GaugeContext extends GaugeConfig {
     innerRadius: number
     totalAngle: number
     drawAngleOffset: number
-}
-
-
-/** Converts polar coordinates to Cartesian coordinates */
-const polarToCartesian = (cx: number, cy: number, radius: number, angle: number) => ({
-    x: cx + Math.cos(angle) * radius,
-    y: cy + Math.sin(angle) * radius
-})
-
-/** Draw a basic circle */
-const drawCircle = (ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, style: string | CanvasGradient, isStroke = false) => {
-    ctx.beginPath()
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-    if (isStroke) {
-        ctx.strokeStyle = style
-        ctx.stroke()
-    } else {
-        ctx.fillStyle = style
-        ctx.fill()
-    }
-}
-
-const drawBezel = (ctx: CanvasRenderingContext2D, g: GaugeContext) => {
-    const bevelGrad = ctx.createRadialGradient(
-        g.cx - g.radius * 0.3, g.cy - g.radius * 0.3, g.radius * 0.4,
-        g.cx, g.cy, g.radius
-    )
-    bevelGrad.addColorStop(0, '#666666')
-    bevelGrad.addColorStop(0.6, '#2a2a2a')
-    bevelGrad.addColorStop(1, '#0a0a0a')
-
-    drawCircle(ctx, g.cx, g.cy, g.radius, bevelGrad)
-
-    ctx.lineWidth = 1
-    drawCircle(ctx, g.cx, g.cy, g.radius, '#000', true)
 }
 
 const drawBackground = (ctx: CanvasRenderingContext2D, g: GaugeContext) => {
@@ -154,14 +120,6 @@ const drawNeedle = (ctx: CanvasRenderingContext2D, g: GaugeContext, value: numbe
     drawCircle(ctx, g.cx, g.cy, g.radius * 0.03, g.accentColor)
 }
 
-const drawGlassGlare = (ctx: CanvasRenderingContext2D, g: GaugeContext) => {
-    ctx.beginPath()
-    ctx.arc(g.cx, g.cy, g.innerRadius, Math.PI + 0.2, Math.PI * 2 - 0.2)
-    ctx.ellipse(g.cx, g.cy - g.radius * 0.2, g.innerRadius * 0.8, g.innerRadius * 0.4, 0, 0, Math.PI, true)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)'
-    ctx.fill()
-}
-
 const drawLabels = (ctx: CanvasRenderingContext2D, g: GaugeContext, value: number) => {
     const labelY = g.cy + g.radius + 25
 
@@ -177,11 +135,7 @@ const drawLabels = (ctx: CanvasRenderingContext2D, g: GaugeContext, value: numbe
     ctx.fillText(`${sign}${value.toFixed(1)}°`, g.cx, labelY + g.radius * 0.25)
 }
 
-export function drawGauge(
-    ctx: CanvasRenderingContext2D,
-    config: GaugeConfig,
-    value: number
-): void {
+export function drawGauge(ctx: CanvasRenderingContext2D, config: GaugeConfig, value: number): void {
     ctx.save()
 
     const gaugeContext: GaugeContext = {
@@ -191,11 +145,11 @@ export function drawGauge(
         drawAngleOffset: Math.PI / 2
     }
 
-    drawBezel(ctx, gaugeContext)
+    drawBezel(ctx, gaugeContext.cx, gaugeContext.cy, gaugeContext.radius)
     drawBackground(ctx, gaugeContext)
     drawTicks(ctx, gaugeContext)
     drawNeedle(ctx, gaugeContext, value)
-    drawGlassGlare(ctx, gaugeContext)
+    drawGlassGlare(ctx, gaugeContext.cx, gaugeContext.cy, gaugeContext.radius, gaugeContext.innerRadius)
     drawLabels(ctx, gaugeContext, value)
 
     ctx.restore()
